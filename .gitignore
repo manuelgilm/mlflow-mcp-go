@@ -1,5 +1,6 @@
 # --- Go ---------------------------------------------------------------------
 # Compiled binaries (never commit these)
+/bin/
 /mlflow-mcp
 /mlflow-mcp-go
 /cmd/mlflow-mcp/mlflow-mcp
