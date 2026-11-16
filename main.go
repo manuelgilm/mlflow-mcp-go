@@ -13,10 +13,13 @@ func main() {
 	context := context.Background()
 	mlflowClient := mlflow.NewClient(baseURL)
 
-	run, err := mlflowClient.GetRun(context, "245345")
+	run, err := mlflowClient.GetRun(context, "7a5e742f4ee64735973660a8eb211b7a")
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(run)
+	fmt.Println("Printing Run Info")
+	fmt.Println(run.Info)
+	fmt.Println("Printing Run Data")
+	fmt.Println(run.Data)
 
 }
