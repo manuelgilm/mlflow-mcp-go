@@ -1,8 +1,8 @@
-package mlflow 
+package mlflow
 
 type Run struct {
-	Info	RunInfo	`json:"info"`
-	Data	RunData	`json:"data"`
+	Info RunInfo `json:"info"`
+	Data RunData `json:"data"`
 }
 
 type RunInfo struct {
