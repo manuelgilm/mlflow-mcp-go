@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/manuelgilm/mlflow-mcp-go/internal/server"
 	"github.com/manuelgilm/mlflow-mcp-go/internal/mlflow"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	
 	"log"
 )
 
 func main() {
-	fmt.Println("Creating MCP Server")
 	const baseURL = "http://localhost:5000"
 	context := context.Background()
 	mlflowClient := mlflow.NewClient(baseURL)
@@ -20,7 +17,6 @@ func main() {
 	handler.RegisterTools(srv)
 
 	if err := srv.Run(context, &mcp.StdioTransport{}); err != nil {
-
 		log.Fatal(err)
 	}
 }
