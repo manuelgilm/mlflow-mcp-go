@@ -1,0 +1,84 @@
+# --- Go ---------------------------------------------------------------------
+# Compiled binaries (never commit these)
+/mlflow-mcp
+/mlflow-mcp-go
+/cmd/mlflow-mcp/mlflow-mcp
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test / coverage output
+*.test
+*.out
+coverage.*
+profile.cov
+
+# Build & tooling caches
+/vendor/
+*.prof
+# go.sum is committed on purpose: it pins the SDK and its transitives.
+
+# --- Python (MLflow fixture) ------------------------------------------------
+# Virtual env used by the local MLflow server
+.venv/
+venv/
+env/
+.venv*/
+
+# Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging / test artifacts
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- MLflow local state -----------------------------------------------------
+mlflow.db
+mlruns/
+mlartifacts/
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Docker -----------------------------------------------------------------
+docker-compose.override.yml
+.dockerignore.local
+*.tar
+# Keep .dockerignore committed; it belongs in the repo.
+
+# --- Secrets & local config -------------------------------------------------
+.env
+.env.*
+!.env.example
+.secrets/
+*.pem
+*.key
+# Local MCP client configs (Inspector, Claude Desktop, etc.)
+.mcp.json
+mcp.json
+claude_desktop_config.json
+
+# --- Editors ----------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+*.swp
+*.swo
+*~
+
+# --- OS ---------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
