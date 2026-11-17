@@ -15,6 +15,7 @@ func main() {
 	handler := server.New(mlflowClient)
 	srv := mcp.NewServer(&mcp.Implementation{Name: "MLflow-MCP-GO", Version: "1.0"}, nil)
 	handler.RegisterTools(srv)
+	handler.RegisterResources(srv)
 
 	if err := srv.Run(context, &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)
