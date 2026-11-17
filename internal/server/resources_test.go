@@ -39,7 +39,9 @@ func newSession(t *testing.T, mlflowHandler http.HandlerFunc) *mcp.ClientSession
 	t.Cleanup(mlflowSrv.Close)
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
-	New(mlflow.NewClient(mlflowSrv.URL)).RegisterResources(srv)
+	handlers := New(mlflow.NewClient(mlflowSrv.URL))
+	handlers.RegisterTools(srv)
+	handlers.RegisterResources(srv)
 
 	cTransport, sTransport := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(context.Background(), sTransport, nil)
@@ -129,7 +131,7 @@ func TestReadExperiments(t *testing.T) {
 
 	// "workspace" must not leak into the resource: §7.1 defines the contents as
 	// id, name and lifecycle stage.
-	const want = `[{"experiment_id":"0","name":"Default","lifecycle_stage":"active"}]`
+	const want = `{"experiments":[{"experiment_id":"0","name":"Default","lifecycle_stage":"active"}]}`
 	if c.Text != want {
 		t.Errorf("contents:\n got %s\nwant %s", c.Text, want)
 	}
@@ -146,8 +148,69 @@ func TestReadExperimentsEmpty(t *testing.T) {
 	}
 	// An absent list must read as [] — a null in a resource JSON payload is a
 	// shape every consumer has to special-case.
-	if got := res.Contents[0].Text; got != "[]" {
-		t.Errorf("contents = %s, want []", got)
+	if got := res.Contents[0].Text; got != `{"experiments":[]}` {
+		t.Errorf(`contents = %s, want {"experiments":[]}`, got)
+	}
+}
+
+func TestListExperiments(t *testing.T) {
+	var gotMethod, gotPath string
+	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		io.WriteString(w, `{"experiments":[
+			{"experiment_id":"0","name":"Default","lifecycle_stage":"active"},
+			{"experiment_id":"7","name":"ablation","lifecycle_stage":"active"}]}`)
+	})
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_experiments"})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool error: %s", res.Content)
+	}
+	if gotMethod != http.MethodPost || gotPath != "/api/2.0/mlflow/experiments/search" {
+		t.Errorf("upstream = %s %s, want POST experiments/search", gotMethod, gotPath)
+	}
+
+	// StructuredContent arrives decoded as any on the client side.
+	raw, err := json.Marshal(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("re-encoding structuredContent: %v", err)
+	}
+	var got ExperimentList
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("decoding structuredContent %s: %v", raw, err)
+	}
+	if len(got.Experiments) != 2 || got.Experiments[1].Name != "ablation" {
+		t.Errorf("experiments = %+v", got.Experiments)
+	}
+}
+
+// TestToolList guards registration: a tool that fails to register disappears
+// from the client's catalog with no error anywhere (§12).
+func TestToolList(t *testing.T) {
+	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{}`) })
+
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+
+	names := map[string]bool{}
+	for _, tool := range res.Tools {
+		names[tool.Name] = true
+		if tool.Description == "" {
+			t.Errorf("tool %q has no description; it earns its place by stating a question (§7)", tool.Name)
+		}
+		if tool.InputSchema == nil {
+			t.Errorf("tool %q has no input schema", tool.Name)
+		}
+	}
+	for _, want := range []string{"list_experiments", "get_run"} {
+		if !names[want] {
+			t.Errorf("tool %q is not registered (got %v)", want, names)
+		}
 	}
 }
 
