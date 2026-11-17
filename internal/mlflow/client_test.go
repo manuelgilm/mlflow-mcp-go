@@ -1,12 +1,12 @@
 package mlflow
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"context"
-	"errors" 
 )
 
 func TestGetRun(t *testing.T) {
@@ -38,7 +38,7 @@ func TestGetRun(t *testing.T) {
 	}
 	if len(run.Data.Params) != 1 || run.Data.Params[0].Value != "0.01" {
 		t.Errorf("params = %+v", run.Data.Params)
-	}	
+	}
 }
 
 func TestGetRunNotFound(t *testing.T) {
@@ -54,10 +54,51 @@ func TestGetRunNotFound(t *testing.T) {
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("want *APIError, got %T: %v", err, err)
 	}
-	if !errors.As(err, &apiErr) {
-		t.Fatalf("want *APIError, got %T: %v", err, err)
-	}
 	if apiErr.Status != http.StatusNotFound || apiErr.Code != "RESOURCE_DOES_NOT_EXIST" {
 		t.Fatalf("got %+v", apiErr)
+	}
+}
+
+func TestSearchExperiments(t *testing.T) {
+	var gotMethod, gotPath, gotContentType, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		gotContentType = r.Header.Get("Content-Type")
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("reading request body: %v", err)
+		}
+		gotBody = string(body)
+
+		w.Header().Set("Content-Type", "application/json")
+		// "workspace" is MLflow 3.x and is deliberately not modelled.
+		io.WriteString(w, `{"experiments":[
+			{"experiment_id":"0","name":"Default","lifecycle_stage":"active",
+			 "workspace":"default"}],"next_page_token":""}`)
+	}))
+	defer srv.Close()
+
+	resp, err := NewClient(srv.URL).SearchExperiments(context.Background(),
+		SearchExperimentsRequest{MaxResults: 1000})
+	if err != nil {
+		t.Fatalf("SearchExperiments: %v", err)
+	}
+
+	// The endpoint is a POST with a JSON body: a GET here would 405 in production
+	// while still passing any test that only checked the path.
+	if gotMethod != http.MethodPost || gotPath != "/api/2.0/mlflow/experiments/search" {
+		t.Errorf("request = %s %s, want POST /api/2.0/mlflow/experiments/search", gotMethod, gotPath)
+	}
+	if gotContentType != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", gotContentType)
+	}
+	if gotBody != `{"max_results":1000}` {
+		t.Errorf("body = %s", gotBody)
+	}
+	if len(resp.Experiments) != 1 {
+		t.Fatalf("got %d experiments, want 1", len(resp.Experiments))
+	}
+	if e := resp.Experiments[0]; e.ExperimentID != "0" || e.Name != "Default" || e.LifecycleStage != "active" {
+		t.Errorf("experiment = %+v", e)
 	}
 }

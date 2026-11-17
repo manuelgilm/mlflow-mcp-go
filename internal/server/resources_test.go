@@ -101,6 +101,56 @@ func TestReadRun(t *testing.T) {
 	}
 }
 
+func TestReadExperiments(t *testing.T) {
+	var gotMethod, gotPath string
+	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		io.WriteString(w, `{"experiments":[
+			{"experiment_id":"0","name":"Default","lifecycle_stage":"active",
+			 "workspace":"default"}],"next_page_token":""}`)
+	})
+
+	const uri = "mlflow://experiments"
+	res, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+
+	if gotMethod != http.MethodPost || gotPath != "/api/2.0/mlflow/experiments/search" {
+		t.Errorf("upstream = %s %s, want POST experiments/search", gotMethod, gotPath)
+	}
+	if res.CacheScope != "private" {
+		t.Errorf("CacheScope = %q, want private", res.CacheScope)
+	}
+	c := res.Contents[0]
+	if c.URI != uri || c.MIMEType != "application/json" {
+		t.Errorf("content = uri %q mime %q", c.URI, c.MIMEType)
+	}
+
+	// "workspace" must not leak into the resource: §7.1 defines the contents as
+	// id, name and lifecycle stage.
+	const want = `[{"experiment_id":"0","name":"Default","lifecycle_stage":"active"}]`
+	if c.Text != want {
+		t.Errorf("contents:\n got %s\nwant %s", c.Text, want)
+	}
+}
+
+func TestReadExperimentsEmpty(t *testing.T) {
+	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{}`)
+	})
+
+	res, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: "mlflow://experiments"})
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	// An absent list must read as [] — a null in a resource JSON payload is a
+	// shape every consumer has to special-case.
+	if got := res.Contents[0].Text; got != "[]" {
+		t.Errorf("contents = %s, want []", got)
+	}
+}
+
 func TestReadRunNotFound(t *testing.T) {
 	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
