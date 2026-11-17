@@ -38,3 +38,19 @@ type Tag struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+type Experiment struct {
+	ExperimentID   string `json:"experiment_id"`
+	Name           string `json:"name"`
+	LifecycleStage string `json:"lifecycle_stage"`
+}
+
+type SearchExperimentsRequest struct {
+	MaxResults int    `json:"max_results,omitempty"`
+	PageToken  string `json:"page_token,omitempty"`
+}
+
+type SearchExperimentsResponse struct {
+	Experiments   []Experiment `json:"experiments"`
+	NextPageToken string       `json:"next_page_token"`
+}
