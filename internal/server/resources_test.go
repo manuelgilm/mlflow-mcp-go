@@ -38,8 +38,16 @@ func newSession(t *testing.T, mlflowHandler http.HandlerFunc) *mcp.ClientSession
 	mlflowSrv := httptest.NewServer(mlflowHandler)
 	t.Cleanup(mlflowSrv.Close)
 
+	return newSessionForURL(t, mlflowSrv.URL)
+}
+
+// newSessionForURL is newSession for a tracking server the test has already
+// built — notably one that is already closed, to exercise transport failures.
+func newSessionForURL(t *testing.T, baseURL string) *mcp.ClientSession {
+	t.Helper()
+
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
-	handlers := New(mlflow.NewClient(mlflowSrv.URL))
+	handlers := New(mlflow.NewClient(baseURL))
 	handlers.RegisterTools(srv)
 	handlers.RegisterResources(srv)
 
