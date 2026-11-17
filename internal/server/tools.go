@@ -24,10 +24,43 @@ func New(c *mlflow.Client) *Handlers {
 
 func (h *Handlers) RegisterTools(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
+		Name: "list_experiments",
+		Description: "Answer \"what experiments exist?\" — returns id, name and " +
+			"lifecycle stage for every active experiment. Use it to find the " +
+			"experiment_id that search_runs filters on.",
+	}, h.listExperiments)
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_run",
 		Description: "Answer \"what happened in this run?\" — returns params, " +
 			"latest value per metric, and selected tags.",
 	}, h.getRun)
+}
+
+// listExperimentsInput is empty on purpose: the tool takes no arguments.
+type listExperimentsInput struct{}
+
+func (h *Handlers) listExperiments(ctx context.Context, _ *mcp.CallToolRequest, _ listExperimentsInput) (*mcp.CallToolResult, ExperimentList, error) {
+	list, err := h.experiments(ctx)
+	if err != nil {
+		return nil, ExperimentList{}, err
+	}
+	return nil, list, nil
+}
+
+// experiments is the single source for both list_experiments and
+// mlflow://experiments, so the tool and the resource cannot drift.
+func (h *Handlers) experiments(ctx context.Context) (ExperimentList, error) {
+	// Pagination is milestone 5; 1000 is the largest page every server must
+	// support, so this only truncates past a thousand experiments.
+	resp, err := h.client.SearchExperiments(ctx, mlflow.SearchExperimentsRequest{MaxResults: 1000})
+	if err != nil {
+		return ExperimentList{}, err
+	}
+	if resp.Experiments == nil {
+		return ExperimentList{Experiments: []mlflow.Experiment{}}, nil // [] rather than null
+	}
+	return ExperimentList{Experiments: resp.Experiments}, nil
 }
 
 func (h *Handlers) getRun(ctx context.Context, _ *mcp.CallToolRequest, in getRunInput) (*mcp.CallToolResult, RunSummary, error) {
@@ -36,6 +69,13 @@ func (h *Handlers) getRun(ctx context.Context, _ *mcp.CallToolRequest, in getRun
 		return nil, RunSummary{}, err
 	}
 	return nil, Summarise(run), nil
+}
+
+// ExperimentList is the payload shared by the list_experiments tool and the
+// mlflow://experiments resource. The envelope leaves room for next_page_token
+// when pagination lands, without changing the wire shape.
+type ExperimentList struct {
+	Experiments []mlflow.Experiment `json:"experiments"`
 }
 
 type RunSummary struct {

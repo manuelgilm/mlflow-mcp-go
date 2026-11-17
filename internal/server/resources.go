@@ -17,7 +17,7 @@ func (h *Handlers) RegisterResources(srv *mcp.Server) {
 		Name:  "experiments",
 		Title: "Experiments",
 		Description: "Every active experiment: id, name and lifecycle stage. " +
-			"Pass an id to search_runs.",
+			"Same data as the list_experiments tool.",
 		MIMEType: "application/json",
 	}, h.readExperiments)
 
@@ -32,18 +32,11 @@ func (h *Handlers) RegisterResources(srv *mcp.Server) {
 }
 
 func (h *Handlers) readExperiments(ctx context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	// Pagination is milestone 5; 1000 is the largest size every server must
-	// support, so this only truncates past a thousand experiments.
-	resp, err := h.client.SearchExperiments(ctx, mlflow.SearchExperimentsRequest{MaxResults: 1000})
+	list, err := h.experiments(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	experiments := resp.Experiments
-	if experiments == nil {
-		experiments = []mlflow.Experiment{} // marshal as [] rather than null
-	}
-	body, err := json.Marshal(experiments)
+	body, err := json.Marshal(list)
 	if err != nil {
 		return nil, err
 	}
