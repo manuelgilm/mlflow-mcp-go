@@ -195,6 +195,91 @@ func TestListExperiments(t *testing.T) {
 	}
 }
 
+func TestSearchRunsTool(t *testing.T) {
+	var gotBody map[string]any
+	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/runs/search" {
+			t.Errorf("upstream path = %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Errorf("decoding body: %v", err)
+		}
+		io.WriteString(w, `{"runs":[
+			{"info":{"run_id":"a","run_name":"tuned","status":"FINISHED",
+			         "start_time":1700000000000,"end_time":1700000004000},
+			 "data":{"params":[{"key":"lr","value":"0.1"}],
+			         "metrics":[{"key":"auc","value":0.93,"step":4}],
+			         "tags":[{"key":"mlflow.user","value":"u"}]}}]}`)
+	})
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "search_runs",
+		Arguments: map[string]any{
+			"experiment_id": "1",
+			"filter":        "metrics.auc > 0.5",
+			"order_by":      []any{"metrics.auc DESC"},
+			"max_results":   5,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool error: %s", textOf(res))
+	}
+
+	// experiment_ids is a list in the MLflow API; the tool takes one id.
+	if got, _ := gotBody["experiment_ids"].([]any); len(got) != 1 || got[0] != "1" {
+		t.Errorf("experiment_ids = %v", gotBody["experiment_ids"])
+	}
+	if gotBody["filter"] != "metrics.auc > 0.5" || gotBody["max_results"] != float64(5) {
+		t.Errorf("body = %v", gotBody)
+	}
+
+	raw, err := json.Marshal(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("re-encoding structuredContent: %v", err)
+	}
+	var got SearchRunsOutput
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("decoding %s: %v", raw, err)
+	}
+	if len(got.Runs) != 1 {
+		t.Fatalf("got %d rows, want 1", len(got.Runs))
+	}
+	row := got.Runs[0]
+	if row.RunID != "a" || row.Status != "FINISHED" || row.DurationSec != 4 {
+		t.Errorf("row = %+v", row)
+	}
+	if m, ok := row.Metrics["auc"]; !ok || m.Value == nil || *m.Value != 0.93 {
+		t.Errorf("metrics = %+v", row.Metrics)
+	}
+	// A row must not carry params or tags: that is get_run's job.
+	if strings.Contains(string(raw), `"params"`) || strings.Contains(string(raw), `"tags"`) {
+		t.Errorf("search rows leaked detail: %s", raw)
+	}
+}
+
+func TestSearchRunsRejectsOutOfRangeLimit(t *testing.T) {
+	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("upstream called despite an invalid max_results")
+	})
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "search_runs",
+		Arguments: map[string]any{"experiment_id": "1", "max_results": 5000},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("IsError = false for max_results above the cap")
+	}
+	if msg := textOf(res); !strings.Contains(msg, "max_results") {
+		t.Errorf("error text = %q, want it to name the offending argument", msg)
+	}
+}
+
 // TestToolList guards registration: a tool that fails to register disappears
 // from the client's catalog with no error anywhere (§12).
 func TestToolList(t *testing.T) {
