@@ -92,3 +92,72 @@ func (c *Client) SearchExperiments(ctx context.Context, req SearchExperimentsReq
 	}
 	return &out, nil
 }
+
+// maxPageSize is the largest page every MLflow server must accept.
+const maxPageSize = 1000
+
+// searchRunsBody is the wire shape of runs/search. PageToken is client-owned:
+// callers ask for a result count, not for a page.
+type searchRunsBody struct {
+	ExperimentIDs []string `json:"experiment_ids"`
+	Filter        string   `json:"filter,omitempty"`
+	OrderBy       []string `json:"order_by,omitempty"`
+	MaxResults    int      `json:"max_results,omitempty"`
+	PageToken     string   `json:"page_token,omitempty"`
+}
+
+// SearchRuns returns up to req.MaxResults runs, following page tokens until it
+// has that many or the server runs out. HasMore reports that more runs matched
+// than were returned, so the caller can say so rather than silently truncating.
+func (c *Client) SearchRuns(ctx context.Context, req SearchRunsRequest) (*SearchRunsResponse, error) {
+	want := req.MaxResults
+	if want <= 0 {
+		want = maxPageSize
+	}
+
+	var runs []Run
+	pageToken := ""
+	hasMore := false
+
+	for {
+		pageSize := want - len(runs)
+		if pageSize > maxPageSize {
+			pageSize = maxPageSize
+		}
+
+		var page struct {
+			Runs          []Run  `json:"runs"`
+			NextPageToken string `json:"next_page_token"`
+		}
+		body := searchRunsBody{
+			ExperimentIDs: req.ExperimentIDs,
+			Filter:        req.Filter,
+			OrderBy:       req.OrderBy,
+			MaxResults:    pageSize,
+			PageToken:     pageToken,
+		}
+		if err := c.do(ctx, http.MethodPost, "/runs/search", nil, body, &page); err != nil {
+			return nil, err
+		}
+		runs = append(runs, page.Runs...)
+
+		pageToken = page.NextPageToken
+		if pageToken == "" {
+			break // exhausted
+		}
+		if len(runs) == 0 {
+			// A token with no rows would loop forever; treat it as the end.
+			hasMore = true
+			break
+		}
+		if len(runs) >= want {
+			hasMore = true
+			break
+		}
+	}
+
+	if len(runs) > want {
+		runs = runs[:want] // servers may return more than asked
+	}
+	return &SearchRunsResponse{Runs: runs, HasMore: hasMore}, nil
+}

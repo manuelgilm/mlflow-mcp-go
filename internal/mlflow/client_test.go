@@ -2,6 +2,7 @@ package mlflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -100,5 +101,87 @@ func TestSearchExperiments(t *testing.T) {
 	}
 	if e := resp.Experiments[0]; e.ExperimentID != "0" || e.Name != "Default" || e.LifecycleStage != "active" {
 		t.Errorf("experiment = %+v", e)
+	}
+}
+
+// TestSearchRuns follows page tokens: the second request must echo the token
+// from the first response, and the merged result must carry both pages.
+func TestSearchRuns(t *testing.T) {
+	var calls []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/runs/search" || r.Method != http.MethodPost {
+			t.Errorf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decoding body: %v", err)
+		}
+		calls = append(calls, body)
+
+		w.Header().Set("Content-Type", "application/json")
+		if len(calls) == 1 {
+			io.WriteString(w, `{"runs":[{"info":{"run_id":"a","status":"FINISHED"},
+				"data":{"metrics":[{"key":"auc","value":0.9,"step":1}]}}],
+				"next_page_token":"page-2"}`)
+			return
+		}
+		io.WriteString(w, `{"runs":[{"info":{"run_id":"b","status":"FINISHED"},"data":{}}],
+			"next_page_token":""}`)
+	}))
+	defer srv.Close()
+
+	resp, err := NewClient(srv.URL).SearchRuns(context.Background(), SearchRunsRequest{
+		ExperimentIDs: []string{"1"},
+		Filter:        "metrics.auc > 0.5",
+		OrderBy:       []string{"metrics.auc DESC"},
+		MaxResults:    10,
+	})
+	if err != nil {
+		t.Fatalf("SearchRuns: %v", err)
+	}
+
+	if len(calls) != 2 {
+		t.Fatalf("made %d requests, want 2 (one per page)", len(calls))
+	}
+	if calls[0]["filter"] != "metrics.auc > 0.5" {
+		t.Errorf("filter = %v", calls[0]["filter"])
+	}
+	if got, _ := calls[0]["order_by"].([]any); len(got) != 1 || got[0] != "metrics.auc DESC" {
+		t.Errorf("order_by = %v", calls[0]["order_by"])
+	}
+	if calls[0]["page_token"] != nil {
+		t.Errorf("first request sent page_token = %v", calls[0]["page_token"])
+	}
+	if calls[1]["page_token"] != "page-2" {
+		t.Errorf("second request page_token = %v, want page-2", calls[1]["page_token"])
+	}
+	if len(resp.Runs) != 2 || resp.Runs[0].Info.RunID != "a" || resp.Runs[1].Info.RunID != "b" {
+		t.Errorf("runs = %+v", resp.Runs)
+	}
+	if resp.HasMore {
+		t.Error("HasMore = true after an empty page token")
+	}
+}
+
+// TestSearchRunsTruncated checks the "more than you asked for" signal and that
+// the result is trimmed even when a server over-returns.
+func TestSearchRunsTruncated(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"runs":[{"info":{"run_id":"a"},"data":{}},{"info":{"run_id":"b"},"data":{}}],
+			"next_page_token":"more"}`)
+	}))
+	defer srv.Close()
+
+	resp, err := NewClient(srv.URL).SearchRuns(context.Background(),
+		SearchRunsRequest{ExperimentIDs: []string{"1"}, MaxResults: 1})
+	if err != nil {
+		t.Fatalf("SearchRuns: %v", err)
+	}
+	if len(resp.Runs) != 1 {
+		t.Errorf("got %d runs, want 1", len(resp.Runs))
+	}
+	if !resp.HasMore {
+		t.Error("HasMore = false while a page token remains")
 	}
 }
