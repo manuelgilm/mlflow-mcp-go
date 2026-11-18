@@ -54,3 +54,17 @@ type SearchExperimentsResponse struct {
 	Experiments   []Experiment `json:"experiments"`
 	NextPageToken string       `json:"next_page_token"`
 }
+
+type SearchRunsRequest struct {
+	ExperimentIDs []string
+	Filter        string
+	OrderBy       []string
+	MaxResults    int
+}
+
+// SearchRunsResponse holds the merged result of following page tokens.
+// The client owns pagination, so callers see HasMore rather than a token.
+type SearchRunsResponse struct {
+	Runs    []Run
+	HasMore bool
+}
