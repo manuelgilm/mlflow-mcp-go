@@ -50,6 +50,7 @@ func newSessionForURL(t *testing.T, baseURL string) *mcp.ClientSession {
 	handlers := New(mlflow.NewClient(baseURL))
 	handlers.RegisterTools(srv)
 	handlers.RegisterResources(srv)
+	handlers.RegisterPrompts(srv)
 
 	cTransport, sTransport := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(context.Background(), sTransport, nil)
