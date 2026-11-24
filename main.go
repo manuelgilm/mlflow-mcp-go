@@ -17,6 +17,7 @@ func main() {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "MLflow-MCP-GO", Version: "1.0"}, nil)
 	handler.RegisterTools(srv)
 	handler.RegisterResources(srv)
+	handler.RegisterPrompts(srv)
 
 	if err := srv.Run(ctx, &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)
