@@ -89,7 +89,7 @@ sequenceDiagram
     autonumber
     participant C as MCP Client<br/>(coding agent)
 
-    box rgba(0,0,0,0.05) mlflow-mcp (Go process)
+    box  mlflow-mcp (Go process)
         participant H as internal/server
         participant K as internal/mlflow
     end
