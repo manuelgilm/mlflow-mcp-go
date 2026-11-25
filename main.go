@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 
 	"github.com/manuelgilm/mlflow-mcp-go/internal/mlflow"
 	"github.com/manuelgilm/mlflow-mcp-go/internal/server"
@@ -10,7 +11,11 @@ import (
 )
 
 func main() {
-	const baseURL = "http://localhost:5000"
+	baseURL := os.Getenv("MLFLOW_TRACKING_URI")
+	if baseURL == "" {
+		baseURL = "http://localhost:5000"
+	}
+
 	ctx := context.Background()
 	mlflowClient := mlflow.NewClient(baseURL)
 	handler := server.New(mlflowClient)
