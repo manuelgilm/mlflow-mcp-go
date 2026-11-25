@@ -163,6 +163,53 @@ func TestSearchRuns(t *testing.T) {
 	}
 }
 
+// TestGetRunRaw returns the body untouched: an unmodelled field is the proof
+// that nothing was decoded, filtered, or re-shaped along the way.
+func TestGetRunRaw(t *testing.T) {
+	const rawBody = `{"run":{"info":{"run_id":"abc"},"data":{},"outputs":{"model":"x"},"next_unknown":1}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/runs/get" || r.URL.Query().Get("run_id") != "abc" {
+			t.Errorf("request = %s?%s", r.URL.Path, r.URL.Query())
+		}
+		io.WriteString(w, rawBody)
+	}))
+	defer srv.Close()
+
+	raw, err := NewClient(srv.URL).GetRunRaw(context.Background(), "abc")
+	if err != nil {
+		t.Fatalf("GetRunRaw: %v", err)
+	}
+	// json.RawMessage is JSON-normalised, so compare decoded rather than bytes.
+	if !jsonEqual(raw, []byte(rawBody)) {
+		t.Errorf("raw = %s, want %s", raw, rawBody)
+	}
+}
+
+func TestGetRunRawNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, `{"error_code":"RESOURCE_DOES_NOT_EXIST","message":"nope"}`)
+	}))
+	defer srv.Close()
+
+	_, err := NewClient(srv.URL).GetRunRaw(context.Background(), "missing")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound {
+		t.Fatalf("want 404 *APIError, got %v", err)
+	}
+}
+
+// jsonEqual reports whether two JSON documents are semantically identical.
+func jsonEqual(a, b []byte) bool {
+	var va, vb any
+	if json.Unmarshal(a, &va) != nil || json.Unmarshal(b, &vb) != nil {
+		return false
+	}
+	ra, _ := json.Marshal(va)
+	rb, _ := json.Marshal(vb)
+	return string(ra) == string(rb)
+}
+
 // TestSearchRunsTruncated checks the "more than you asked for" signal and that
 // the result is trimmed even when a server over-returns.
 func TestSearchRunsTruncated(t *testing.T) {
