@@ -138,6 +138,20 @@ what a handler returns. The failure paths assert the invariant from the
 project's history: a down MLflow server returns an error and the session
 survives.
 
+## Releasing
+
+Releases are automated with
+[release-please](https://github.com/googleapis/release-please):
+
+1. Changes reach `main` only through a pull request whose CI is green
+   (`build`, `vet`, `gofmt`, `test -race`).
+2. On merge, release-please opens a release PR with the next semantic version
+   and a changelog, derived from the commit messages.
+3. Merging that PR cuts the tag and publishes the GitHub Release.
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat:`, `fix:`, `docs:`, …) — that is what makes the version bump deterministic.
+
 ## Dependencies and license
 
 - Go 1.26
