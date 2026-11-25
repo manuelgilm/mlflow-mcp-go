@@ -140,17 +140,18 @@ survives.
 
 ## Releasing
 
-Releases are automated with
-[release-please](https://github.com/googleapis/release-please):
+Releases are driven by the [`VERSION`](VERSION) file, tagged automatically with
+the `GITHUB_TOKEN` (no personal access token needed):
 
 1. Changes reach `main` only through a pull request whose CI is green
    (`build`, `vet`, `gofmt`, `test -race`).
-2. On merge, release-please opens a release PR with the next semantic version
-   and a changelog, derived from the commit messages.
-3. Merging that PR cuts the tag and publishes the GitHub Release.
+2. To release, bump `VERSION` in the PR (e.g. `0.2.1` → `0.2.2`).
+3. On merge, the `release` workflow tags `v<version>` and publishes a GitHub
+   Release with auto-generated notes.
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
-(`feat:`, `fix:`, `docs:`, …) — that is what makes the version bump deterministic.
+Merges that leave `VERSION` unchanged publish nothing, so the version only
+moves when you say so. The server's reported version in `cmd/mlflow-mcp/main.go`
+must be kept in sync with `VERSION`.
 
 ## Dependencies and license
 
