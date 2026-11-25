@@ -23,9 +23,8 @@ v0.1, read-first. The surface below is implemented and covered by tests; the
 | Tool | `get_run` | *"What happened in this run?"* (params, latest value per metric, selected tags) |
 | Resource | `mlflow://experiments` | The experiment list: id, name, lifecycle stage |
 | Resource | `mlflow://runs/{run_id}` | The same summary as `get_run` |
+| Resource | `mlflow://runs/{run_id}/raw` | The full, unshaped MLflow JSON (opt-in, large) |
 | Prompt | `compare-runs` | Instructs the model to fetch runs and report only what differs |
-
-Planned: `mlflow://runs/{run_id}/raw` (the full, unshaped MLflow JSON).
 
 ## Scope
 
