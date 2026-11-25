@@ -2,7 +2,6 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "package-name": "mlflow-mcp-go",
       "changelog-path": "CHANGELOG.md"
     }
   },
