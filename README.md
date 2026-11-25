@@ -11,8 +11,8 @@ creating experiments, promoting registry models — are deliberately out of scop
 
 ## Status
 
-v0.1, read-first. The surface below is implemented and covered by tests; the
-"planned" rows are not yet.
+Read-first. Everything listed below is implemented and covered by tests; the
+version number lives in [VERSION](VERSION) and the release tags.
 
 ## What it exposes
 
@@ -28,7 +28,7 @@ v0.1, read-first. The surface below is implemented and covered by tests; the
 
 ## Scope
 
-| In scope (v0.1) | Out of scope |
+| In scope | Out of scope |
 | --- | --- |
 | `list_experiments`, `search_runs`, `get_run` | Logging metrics/params/tags from the agent |
 | Resources: experiments, run summary | Creating or deleting experiments and runs |
@@ -88,7 +88,7 @@ sequenceDiagram
     autonumber
     participant C as MCP Client<br/>(coding agent)
 
-    box  mlflow-mcp (Go process)
+    box mlflow-mcp (Go process)
         participant H as internal/server
         participant K as internal/mlflow
     end
