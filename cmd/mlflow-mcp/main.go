@@ -19,7 +19,7 @@ func main() {
 	ctx := context.Background()
 	mlflowClient := mlflow.NewClient(baseURL)
 	handler := server.New(mlflowClient)
-	srv := mcp.NewServer(&mcp.Implementation{Name: "mlflow-mcp", Version: "0.2.0"}, nil)
+	srv := mcp.NewServer(&mcp.Implementation{Name: "mlflow-mcp", Version: "0.2.1"}, nil) // keep in sync with VERSION
 	handler.RegisterTools(srv)
 	handler.RegisterResources(srv)
 	handler.RegisterPrompts(srv)
