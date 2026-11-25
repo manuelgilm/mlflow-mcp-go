@@ -328,19 +328,27 @@ func TestReadRunNotFound(t *testing.T) {
 	}
 }
 
-// TestReadRunRawIsNotTheSummary pins the disjointness of the two run templates:
-// mlflow://runs/{run_id} must not swallow mlflow://runs/{run_id}/raw, which is
-// not registered yet.
-func TestReadRunRawIsNotTheSummary(t *testing.T) {
+// TestReadRunRawReturnsRawNotSummary pins the disjointness of the two run
+// templates: mlflow://runs/{run_id}/raw must return the unshaped payload, not
+// be swallowed by the summary template. The unmodelled "outputs" field is the
+// tell — it would never survive Summarise.
+func TestReadRunRawReturnsRawNotSummary(t *testing.T) {
+	const rawBody = `{"run":{"info":{"run_id":"abc","status":"FINISHED"},"data":{},"outputs":{"model":"x"}}}`
 	cs := newSession(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("upstream called for an unregistered URI: %s", r.URL)
+		io.WriteString(w, rawBody)
 	})
 
-	_, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: "mlflow://runs/abc/raw"})
+	res, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: "mlflow://runs/abc/raw"})
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
 
-	var wireErr *jsonrpc.Error
-	if !errors.As(err, &wireErr) || wireErr.Code != mcp.CodeResourceNotFound {
-		t.Fatalf("want resource-not-found, got %v", err)
+	c := res.Contents[0]
+	if c.MIMEType != "application/json" || res.CacheScope != "private" {
+		t.Errorf("mime=%q scope=%q, want application/json and private", c.MIMEType, res.CacheScope)
+	}
+	if c.Text != rawBody {
+		t.Errorf("raw was not passed through untouched:\n got %s\nwant %s", c.Text, rawBody)
 	}
 }
 

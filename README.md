@@ -23,9 +23,8 @@ v0.1, read-first. The surface below is implemented and covered by tests; the
 | Tool | `get_run` | *"What happened in this run?"* (params, latest value per metric, selected tags) |
 | Resource | `mlflow://experiments` | The experiment list: id, name, lifecycle stage |
 | Resource | `mlflow://runs/{run_id}` | The same summary as `get_run` |
+| Resource | `mlflow://runs/{run_id}/raw` | The full, unshaped MLflow JSON (opt-in, large) |
 | Prompt | `compare-runs` | Instructs the model to fetch runs and report only what differs |
-
-Planned: `mlflow://runs/{run_id}/raw` (the full, unshaped MLflow JSON).
 
 ## Scope
 
@@ -47,7 +46,7 @@ the MLflow API is the one thing this server deliberately is not.
 `http://localhost:5000`.
 
 ```bash
-MLFLOW_TRACKING_URI=http://host:5000 go run .
+MLFLOW_TRACKING_URI=http://host:5000 go run ./cmd/mlflow-mcp
 ```
 
 ## Quickstart
@@ -59,12 +58,12 @@ mlflow server --backend-store-uri sqlite:///mlflow.db --port 5000
 # 2. Seed it with runs that exercise the server's edges
 python scripts/seed_mlflow.py            # python scripts/seed_mlflow.py --reset to redo
 # 3. Inspect the MCP server
-npx @modelcontextprotocol/inspector go run .
+npx @modelcontextprotocol/inspector go run ./cmd/mlflow-mcp
 ```
 
 Notes:
 
-- `go run .` needs the trailing dot; `go run mlflow-mcp-go` treats the argument
+- `go run ./cmd/mlflow-mcp` needs the leading `./`; `go run mlflow-mcp-go` treats the argument
   as an import path and fails with *"not in std"*.
 - The MLflow server takes roughly 10–15 seconds to become healthy; `/health`
   returning nothing for a moment after launch is normal.
@@ -74,7 +73,7 @@ Notes:
 ## Architecture
 
 ```
-cmd → (main.go at the repo root for now)
+cmd/mlflow-mcp/        wiring only: config, server, register*()
 internal/mlflow/     a plain HTTP client: client.go, types.go, errors.go
 internal/server/     the MCP adapters: tools.go, resources.go, prompts.go
 scripts/             seed_mlflow.py, a fixture generator for manual testing
