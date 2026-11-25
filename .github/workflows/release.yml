@@ -15,6 +15,9 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # A user PAT, not GITHUB_TOKEN: release-please 17.x fails silently
+          # creating the tag + GitHub Release with GITHUB_TOKEN (verified against
+          # 17.3.0). A PAT also lets CI run on the release PR it opens.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
