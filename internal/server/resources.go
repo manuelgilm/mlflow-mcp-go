@@ -29,6 +29,45 @@ func (h *Handlers) RegisterResources(srv *mcp.Server) {
 			"(with its step), and user tags. Same Shape as the get_run tool.",
 		MIMEType: "application/json",
 	}, h.readRun)
+
+	srv.AddResourceTemplate(&mcp.ResourceTemplate{
+		URITemplate: "mlflow://runs/{run_id}/raw",
+		Name:        "run-raw",
+		Title:       "Run (raw JSON)",
+		Description: "The full, unshaped runs/get response for one run — no " +
+			"metric collapse, no tag filtering, no field omission. Opt-in: it can be large.",
+		MIMEType: "application/json",
+	}, h.readRunRaw)
+}
+
+// runID extracts the run id from the path of a matched template. Both run
+// templates route here so their parsing cannot drift.
+func runID(path string) string {
+	return strings.TrimPrefix(strings.TrimSuffix(path, "/raw"), "/")
+}
+
+func (h *Handlers) readRunRaw(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+	u, err := url.Parse(req.Params.URI) // Host="runs", Path="/<id>/raw"
+	if err != nil {
+		return nil, mcp.ResourceNotFoundError(req.Params.URI)
+	}
+	id := runID(u.Path)
+	if id == "" {
+		return nil, mcp.ResourceNotFoundError(req.Params.URI)
+	}
+
+	raw, err := h.client.GetRunRaw(ctx, id)
+	if err != nil {
+		var apiErr *mlflow.APIError
+		if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+			return nil, mcp.ResourceNotFoundError(req.Params.URI)
+		}
+		return nil, err
+	}
+	return &mcp.ReadResourceResult{
+		Cacheable: mcp.Cacheable{CacheScope: "private"},
+		Contents:  []*mcp.ResourceContents{{Text: string(raw)}},
+	}, nil
 }
 
 func (h *Handlers) readExperiments(ctx context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
@@ -51,7 +90,7 @@ func (h *Handlers) readRun(ctx context.Context, req *mcp.ReadResourceRequest) (*
 	if err != nil {
 		return nil, mcp.ResourceNotFoundError(req.Params.URI)
 	}
-	id := strings.TrimPrefix(u.Path, "/")
+	id := runID(u.Path)
 	if id == "" {
 		return nil, mcp.ResourceNotFoundError(req.Params.URI)
 	}

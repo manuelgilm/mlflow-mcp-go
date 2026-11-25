@@ -83,6 +83,17 @@ func (c *Client) GetRun(ctx context.Context, runID string) (*Run, error) {
 	return &out.Run, nil
 }
 
+// GetRunRaw returns the full, unshaped runs/get response for a run, exactly as
+// MLflow returned it (JSON-normalised). No metric collapse, no tag filtering,
+// no field omission — this is the backing for mlflow://runs/{id}/raw.
+func (c *Client) GetRunRaw(ctx context.Context, runID string) (json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodGet, "/runs/get", url.Values{"run_id": {runID}}, nil, &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
 // SearchExperiments lists experiments. The endpoint is a POST with a JSON body,
 // not a GET with query params.
 func (c *Client) SearchExperiments(ctx context.Context, req SearchExperimentsRequest) (*SearchExperimentsResponse, error) {
